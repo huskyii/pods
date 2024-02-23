@@ -1,0 +1,40 @@
+FROM ghcr.io/huskyii/pods/apline:3.19-ustc AS base
+RUN apk add --no-cache --update \
+  tini python3 sqlite-libs ca-certificates tzdata shadow \
+  && mkdir /var/run/pykms/ \
+  && mkdir /pykms/ \
+  && adduser -S pykms -u 1000 -G users -s /bin/false \
+  && chown pykms:users /pykms \
+  && chown pykms:users /var/run/pykms \
+  # Fix undefined timezone, in case the user did not mount the /etc/localtime
+  && ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+
+FROM base AS build
+RUN apk add --no-cache --update \
+  py3-pip && \
+  python3 -m venv /venv && \
+  /venv/bin/pip install --upgrade pip setuptools wheel
+
+FROM build AS build-venv
+COPY py-kms/docker/docker-py3-kms-minimal/requirements.txt /requirements.txt
+RUN /venv/bin/pip install   --no-cache-dir --disable-pip-version-check -r /requirements.txt && \
+    /venv/bin/pip uninstall -y pip setuptools wheel
+
+FROM base AS prod
+RUN apk del apk-tools
+COPY --from=build-venv /venv /venv
+COPY py-kms/py-kms /pykms
+
+WORKDIR /pykms
+
+EXPOSE 1688/tcp
+
+USER pykms
+
+ENTRYPOINT ["/sbin/tini", "--"]
+
+CMD [ "/venv/bin/python3", "-u", "-OO", \
+  "/pykms/pykms_Server.py", "::", "1688", \
+  "-V", "INFO", "--lcid", "1033", "--hwid", "RANDOM", "-c", "28", \
+  "-F", "/var/run/pykms/pykms.log", \
+  "-s", "/var/run/pykms/pykms.sqlite3" ]
