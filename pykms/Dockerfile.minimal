@@ -1,6 +1,6 @@
 FROM ghcr.io/huskyii/pods/apline:3.19-ustc AS base
 RUN apk add --no-cache --update \
-  tini python3 sqlite-libs ca-certificates tzdata shadow \
+  tini python3 ca-certificates tzdata shadow \
   && mkdir /var/run/pykms/ \
   && mkdir /pykms/ \
   && adduser -S pykms -u 1000 -G users -s /bin/false \
@@ -13,7 +13,7 @@ FROM base AS build
 RUN apk add --no-cache --update \
   py3-pip && \
   python3 -m venv /venv && \
-  /venv/bin/pip install --upgrade pip setuptools wheel
+  /venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
 
 FROM build AS build-venv
 COPY py-kms/docker/docker-py3-kms-minimal/requirements.txt /requirements.txt
@@ -35,6 +35,8 @@ ENTRYPOINT ["/sbin/tini", "--"]
 
 CMD [ "/venv/bin/python3", "-u", "-OO", \
   "/pykms/pykms_Server.py", "::", "1688", \
-  "-V", "INFO", "--lcid", "1033", "--hwid", "RANDOM", "-c", "28", \
-  "-F", "/var/run/pykms/pykms.log", \
-  "-s", "/var/run/pykms/pykms.sqlite3" ]
+  "-V", "INFO", \
+  "--lcid", "1033", \
+  "--hwid", "RANDOM", \
+  "-c", "28", \
+  "-F", "/var/run/pykms/pykms.log" ]
